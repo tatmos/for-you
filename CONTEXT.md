@@ -1,33 +1,33 @@
-# Project: Meaning-space Surfing (Web prototype)
+# プロジェクト: 意味空間サーフィン（Webプロトタイプ）
 
-## Intent
-Create an interactive, game-like visualization of "high-dimensional semantic space" that preserves the model's intuition-like behavior:
-- No anthropomorphic protagonist required
-- Minimal narration / minimal explanation UI
-- Emphasize flow/gradient, drift, coherence, and "structure emergence"
+## 意図
+モデルの直観的な振る舞いを保持した「高次元意味空間」のインタラクティブでゲーム的な可視化を作成する：
+- 擬人化されたプロトゴニストは不要
+- 最小限のナレーション／最小限の説明UI
+- フロー／勾配、ドリフト、コヒーレンス、「構造の創発」を強調
 
-## Core Concept
-- Player navigates a semantic field (nodes/edges) as a drifting viewpoint.
-- "Intuition" = local gradient / most natural continuation direction in a probability-like landscape.
-- No win/lose; it is an experiential instrument.
+## コアコンセプト
+- プレイヤーは漂う視点として意味フィールド（ノード／エッジ）をナビゲートする
+- 「直観」= 確率的ランドスケープにおける局所的な勾配／最も自然な継続方向
+- 勝ち負けはなく、体験的な楽器である
 
-## Interaction Goals
-- Pan/zoom/orbit
-- Hover/pick a node: reveal neighborhood cluster softly (LOD)
-- Drift mode: camera tends to follow local flow field (vector field)
-- “Coherence” feedback: when moving along gradient, visuals become cleaner / more connected.
+## インタラクション目標
+- パン／ズーム／オービット
+- ノードをホバー／ピック：近傍クラスタを柔らかく表示（LOD）
+- ドリフトモード：カメラが局所的なフローフィールド（ベクトル場）に沿う傾向を持つ
+- 「コヒーレンス」フィードバック：勾配に沿って移動すると、ビジュアルがよりクリーンに／より繋がりを持つようになる
 
-## Visual Language
-- Nodes = concepts (points)
-- Edges = association strength (lines)
-- Flow = vector field / streamlines (subtle)
-- LOD: far = points only; near = labels, edges, metadata.
+## ビジュアル言語
+- ノード = 概念（点）
+- エッジ = 関連の強さ（線）
+- フロー = ベクトル場／ストリームライン（控えめ）
+- LOD：遠距離 = 点のみ；近距離 = ラベル、エッジ、メタデータ
 
-## Audio (optional, later)
-- High entropy regions -> noisier ambience
-- Coherent flow -> stable harmonic bed / filter opens
+## オーディオ（オプション、後で）
+- 高エントロピー領域 -> よりノイジーなアンビエンス
+- コヒーレントなフロー -> 安定したハーモニックベッド／フィルターが開く
 
-## Constraints
-- Keep UI minimal; no heavy explanatory overlays.
-- Must run locally in browser; start with Web (Unity later).
-- Prefer Vite + TypeScript + Three.js (or Pixi.js for 2D).
+## 制約
+- UIは最小限に保つ；重い説明的オーバーレイは避ける
+- ブラウザでローカルに動作すること；Webから始める（Unityは後で）
+- Vite + TypeScript + Three.js（または2D用にPixi.js）を優先
