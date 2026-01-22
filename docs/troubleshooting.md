@@ -15,3 +15,10 @@ error 403 In most cases, you or one of your dependencies are requesting
 error 403 a package version that is forbidden by your security policy, or
 error 403 on a server you do not have access to.
 ```
+
+## GitHub Pagesで404になる
+
+GitHub Pagesで配信する際、リポジトリ配下（`/<リポジトリ名>/`）とルート配信で `base` の値が異なります。このプロジェクトではワークフロー側で `BASE_PATH` を自動設定しているため、通常は追加設定不要です。
+
+- `https://<owner>.github.io/<リポジトリ名>/` の場合: `BASE_PATH=/<リポジトリ名>/`
+- `https://<owner>.github.io/` の場合: `BASE_PATH=/`

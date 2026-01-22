@@ -27,3 +27,5 @@ npm run dev
 このリポジトリには `.github/workflows/deploy.yml` のGitHub Actionsワークフローが含まれており、`main` ブランチへのpush時にViteアプリをビルドして `dist/` をGitHub Pagesへ公開します。
 
 GitHub Pagesのサブパス（`/<リポジトリ名>/`）で404にならないように、ワークフロー側で `BASE_PATH` を自動設定しています。
+
+`<owner>.github.io` のユーザ/組織ページとして公開する場合はルート配信になるため、`BASE_PATH` は `/` になります。
