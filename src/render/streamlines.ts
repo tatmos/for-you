@@ -43,8 +43,11 @@ export const createStreamlines = (
   const positions: number[] = [];
   const colors: number[] = [];
   const bakedFields: SegmentFields[] = [];
+  // More diverse colors for nebula effect
   const baseColor = new THREE.Color("#4080ff");
   const dimColor = new THREE.Color("#1a2840");
+  const purpleColor = new THREE.Color("#8b5cf6");
+  const orangeColor = new THREE.Color("#fb923c");
 
   // Generate background streamlines with baked fields
   for (let s = 0; s < streamlineCount; s++) {
@@ -111,7 +114,7 @@ export const createStreamlines = (
   // Hero streamlines (forward-facing, visible during drift)
   const heroGeometry = new THREE.BufferGeometry();
   const heroMaterial = new THREE.LineBasicMaterial({
-    color: new THREE.Color("#6fb0ff"),
+    color: new THREE.Color("#ffffff"), // White for hero streamlines
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -128,7 +131,7 @@ export const createStreamlines = (
     const heroCount = 5;
     const heroPositions: number[] = [];
     const heroColors: number[] = [];
-    const heroColor = new THREE.Color("#6fb0ff");
+    const heroColor = new THREE.Color("#ffffff"); // White for hero streamlines
 
     for (let h = 0; h < heroCount; h++) {
       const angle = (h / heroCount) * Math.PI * 0.5 - Math.PI * 0.25;
@@ -231,9 +234,20 @@ export const createStreamlines = (
         
         // Combine baked local coherence with global camera coherence
         const effectiveCoherence = segmentFields.coherence * 0.7 + globalCoherence * 0.3;
-        const brightness = 0.25 + effectiveCoherence * 0.75;
+        const brightness = 0.3 + effectiveCoherence * 0.8;
         
-        const color = baseColor.clone().lerp(dimColor, segmentFields.entropy * 0.5);
+        // Vary colors based on position and fields for nebula effect
+        const colorVariation = (i * 0.1 + segmentFields.entropy) % 1.0;
+        let color: THREE.Color;
+        if (colorVariation < 0.33) {
+          color = baseColor.clone().lerp(purpleColor, colorVariation * 3);
+        } else if (colorVariation < 0.66) {
+          color = purpleColor.clone().lerp(orangeColor, (colorVariation - 0.33) * 3);
+        } else {
+          color = orangeColor.clone().lerp(baseColor, (colorVariation - 0.66) * 3);
+        }
+        color.lerp(dimColor, segmentFields.entropy * 0.3);
+        
         const idx = i * 2;
         colorAttr.setXYZ(idx, color.r * brightness, color.g * brightness, color.b * brightness);
         colorAttr.setXYZ(idx + 1, color.r * brightness, color.g * brightness, color.b * brightness);

@@ -24,9 +24,9 @@ export const createPostProcessor = (
 
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.5,  // strength (moderate default)
-    0.35, // radius
-    0.88  // threshold (higher to prevent washout)
+    0.8,  // strength (increased for more vibrant glow)
+    0.5,  // radius (increased for nebula-like spread)
+    0.7   // threshold (lower to capture more colors)
   );
   composer.addPass(bloomPass);
 
@@ -58,14 +58,14 @@ export const createPostProcessor = (
       thresholdOffset = 0.05; // Slightly higher threshold
     }
     
-    // Strength increases with coherence but stays moderate
-    targetStrength = (0.35 + cohSquared * 0.55) * strengthMultiplier;
+    // Strength increases with coherence - more vibrant for nebula effect
+    targetStrength = (0.6 + cohSquared * 0.6) * strengthMultiplier;
     
-    // Radius increases slightly with coherence (spread, not intensity)
-    targetRadius = (0.3 + cohCurve * 0.35) * radiusMultiplier;
+    // Radius increases with coherence for nebula-like spread
+    targetRadius = (0.4 + cohCurve * 0.5) * radiusMultiplier;
     
-    // Threshold stays high to prevent washout
-    targetThreshold = 0.92 - cohSquared * 0.18 + thresholdOffset;
+    // Threshold lower to capture more colors (nebula effect)
+    targetThreshold = 0.7 - cohSquared * 0.2 + thresholdOffset;
     
     // Smooth interpolation
     bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, targetStrength, 0.03);

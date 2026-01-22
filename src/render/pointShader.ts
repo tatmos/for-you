@@ -6,9 +6,6 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     varying vec3 vColor;
     varying float vDistance;
     varying vec3 vWorldPos;
-    uniform float time;
-    uniform vec3 fogColor;
-    uniform vec3 cameraPosition;
     
     void main() {
       vColor = color;
@@ -26,24 +23,38 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
   `;
 
   const fragmentShader = `
+    #ifdef GL_ES
+    precision mediump float;
+    #endif
+    
     varying vec3 vColor;
     varying float vDistance;
     varying vec3 vWorldPos;
     uniform float time;
     uniform vec3 fogColor;
-    uniform vec3 cameraPosition;
+    uniform vec3 uCameraPosition;
     uniform float localityRadius;
     uniform float coherence;
     uniform float breathPhase;
     
     void main() {
-      // Circular point shape
       vec2 center = gl_PointCoord - vec2(0.5);
       float dist = length(center);
-      if (dist > 0.5) discard;
       
-      // Soft edge
-      float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+      // Star burst effect - radiating lines
+      float angle = atan(center.y, center.x);
+      float rays = 8.0;
+      float rayPattern = abs(sin(angle * rays * 0.5));
+      rayPattern = pow(rayPattern, 3.0);
+      
+      // Core glow
+      float core = 1.0 - smoothstep(0.0, 0.15, dist);
+      // Outer glow
+      float outer = 1.0 - smoothstep(0.2, 0.5, dist);
+      
+      // Combine core, rays, and outer glow
+      float starburst = core * 1.0 + rayPattern * outer * 0.6 + outer * 0.4;
+      float alpha = starburst;
       
       // Three-layer depth expression: near/mid/far
       float nearLayer = smoothstep(50.0, 30.0, vDistance);   // sharp
@@ -54,7 +65,7 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       alpha *= nearLayer * 1.0 + midLayer * 0.6 + farLayer * 0.2;
       
       // Locality bias: brighter within radius (breathes with phase)
-      float worldDist = distance(vWorldPos, cameraPosition);
+      float worldDist = distance(vWorldPos, uCameraPosition);
       float localityFactor = smoothstep(localityRadius * 1.5, localityRadius * 0.5, worldDist);
       
       // Breathing modulation: inhale = slightly brighter locality
@@ -74,7 +85,8 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       
       float twinkle = sin(time * twinkleFreq + vDistance * 0.1) * twinkleAmount + (1.0 - twinkleAmount);
       
-      vec3 finalColor = color * twinkle;
+      // Enhance brightness for starburst effect
+      vec3 finalColor = color * twinkle * (1.0 + starburst * 0.3);
       gl_FragColor = vec4(finalColor, alpha * 0.9);
     }
   `;
@@ -84,8 +96,8 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     fragmentShader,
     uniforms: {
       time: { value: 0 },
-      fogColor: { value: new THREE.Color("#05060b") },
-      cameraPosition: { value: new THREE.Vector3() },
+      fogColor: { value: new THREE.Color("#000000") },
+      uCameraPosition: { value: new THREE.Vector3() },
       localityRadius: { value: 60.0 },
       coherence: { value: 0.5 },
       breathPhase: { value: 0.5 }

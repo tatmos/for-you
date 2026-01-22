@@ -10,8 +10,9 @@ export type SceneBundle = {
 
 export const createScene = (container: HTMLElement): SceneBundle => {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#05060b");
-  scene.fog = new THREE.Fog("#05060b", 30, 160);
+  // Deeper, darker space background
+  scene.background = new THREE.Color("#000000");
+  scene.fog = new THREE.Fog("#000000", 20, 180);
 
   const camera = new THREE.PerspectiveCamera(
     60,
