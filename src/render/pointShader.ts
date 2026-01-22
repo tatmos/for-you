@@ -34,6 +34,7 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     uniform vec3 cameraPosition;
     uniform float localityRadius;
     uniform float coherence;
+    uniform float breathPhase;
     
     void main() {
       // Circular point shape
@@ -52,18 +53,25 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       // Alpha composition: near is opaque, mid fades, far dissolves into fog
       alpha *= nearLayer * 1.0 + midLayer * 0.6 + farLayer * 0.2;
       
-      // Locality bias: brighter within radius
+      // Locality bias: brighter within radius (breathes with phase)
       float worldDist = distance(vWorldPos, cameraPosition);
       float localityFactor = smoothstep(localityRadius * 1.5, localityRadius * 0.5, worldDist);
-      alpha *= 1.0 + localityFactor * 0.4;
+      
+      // Breathing modulation: inhale = slightly brighter locality
+      float breathModulation = 1.0 + breathPhase * 0.15;
+      alpha *= 1.0 + localityFactor * 0.4 * breathModulation;
       
       // Far layer mixes with fog color (nebula effect)
       float fogMix = smoothstep(100.0, 150.0, vDistance);
       vec3 color = mix(vColor, fogColor * 0.5, fogMix * 0.7);
       
-      // Twinkle regularity controlled by coherence
+      // Twinkle regularity controlled by coherence AND breath
       float twinkleAmount = mix(0.15, 0.08, coherence); // Less random when coherent
-      float twinkleFreq = mix(0.5, 0.3, coherence); // Slower when coherent
+      
+      // Breath modulates twinkle frequency: inhale = calmer
+      float baseFreq = mix(0.5, 0.3, coherence);
+      float twinkleFreq = baseFreq * (1.0 - breathPhase * 0.2); // Slower on inhale
+      
       float twinkle = sin(time * twinkleFreq + vDistance * 0.1) * twinkleAmount + (1.0 - twinkleAmount);
       
       vec3 finalColor = color * twinkle;
@@ -79,7 +87,8 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       fogColor: { value: new THREE.Color("#05060b") },
       cameraPosition: { value: new THREE.Vector3() },
       localityRadius: { value: 60.0 },
-      coherence: { value: 0.5 }
+      coherence: { value: 0.5 },
+      breathPhase: { value: 0.5 }
     },
     transparent: true,
     depthWrite: false,

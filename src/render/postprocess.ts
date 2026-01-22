@@ -4,10 +4,11 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ScalarFields } from "../field/flow";
 import { VisualizationMode } from "../metrics/paramBus";
+import type { BreathState } from "../metrics/breath";
 
 export type PostProcessor = {
   composer: EffectComposer;
-  update: (fields: ScalarFields, mode: VisualizationMode) => void;
+  update: (fields: ScalarFields, mode: VisualizationMode, breath: BreathState) => void;
   resize: (width: number, height: number) => void;
 };
 
@@ -33,7 +34,7 @@ export const createPostProcessor = (
   let targetRadius = 0.35;
   let targetThreshold = 0.88;
 
-  const update = (fields: ScalarFields, mode: VisualizationMode) => {
+  const update = (fields: ScalarFields, mode: VisualizationMode, breath: BreathState) => {
     const { coherence, entropy } = fields;
     
     // Non-linear coherence curve using smoothstep for artistic feel
@@ -42,6 +43,9 @@ export const createPostProcessor = (
     
     const isInternalized = mode === VisualizationMode.Internalized;
     
+    // Breathing modulation: inhale = slightly stronger bloom (luminosity of attention)
+    const breathModulation = isInternalized ? (1.0 + breath.phase * 0.12) : 1.0;
+    
     // Bloom as "atmosphere clarity" not "white blowout"
     // In Internalized Mode: reduce global bloom, emphasize presence over brightness
     let strengthMultiplier = 1.0;
@@ -49,7 +53,7 @@ export const createPostProcessor = (
     let thresholdOffset = 0;
     
     if (isInternalized) {
-      strengthMultiplier = 0.7; // Reduce global bloom
+      strengthMultiplier = 0.7 * breathModulation; // Reduce global bloom, modulate with breath
       radiusMultiplier = 0.8; // Tighter radius
       thresholdOffset = 0.05; // Slightly higher threshold
     }

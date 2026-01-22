@@ -59,7 +59,7 @@ npm run dev
 ### Internalizedモード（瞑想装置）
 「空間の中にいる」主観体験。説明的UIを削ぎ落とし、意識点として場を漂います。
 
-**特徴**:
+**空間的特徴**:
 - OrbitControlsを無効化、ドリフトが主要な移動手段
 - Hero Streamlines（前方の道）が常に可視化され、直観的方向を示す
 - 通常streamlinesとedgesを抑制、局所的知覚を強調
@@ -68,10 +68,21 @@ npm run dev
 - コヒーレンスが点の「twinkle規則性」を制御（coherent時は穏やかに）
 - bloomを控えめに、「presence（気配）」として機能
 
+**時間的特徴（呼吸層）**:
+- 約16秒周期の緩やかな呼吸オシレーター
+- **局所性半径の呼吸**: 吸気で空間が開き（45-55unit）、呼気で焦点が定まる
+- **Hero Streamlineの呼吸**: 吸気で道が明るく長く、呼気で控えめに
+- **Twinkle周期の呼吸**: 吸気で点の瞬きが穏やかに、呼気でわずかに不規則に
+- **Bloomの呼吸**: 吸気で注意の光度が増し、呼気で落ち着く
+- すべての変調は極めて微細で、「アニメーション」ではなく「生命感」として知覚される
+
 **体験**:
 - Iキーを押す → UIが消え、画面中央に微かな「◉」グリフ
 - ドリフトが自動でON、前方に道が現れる
 - 周囲の空間が「感じられる層」として知覚される
+- 静止して30秒待つ → 空間が呼吸しているような微細なリズムを感じる
+- 吸気時: 空間が開き、光が集まり、道が伸びる
+- 呼気時: 空間が焦点を絞り、静かになる
 - coherent領域では視界がクリアに、path bundleが安定
 - diffuse領域では霞み、pathが短く拡散
 
@@ -97,14 +108,20 @@ npm run dev
 ## アーキテクチャ
 - **ParamBus** (`src/metrics/paramBus.ts`): 全ビジュアルパラメータと状態の中央管理
   - 可視化モード（Default / Internalized）の管理
+  - 呼吸オシレーターの統合と公開
   - Internalized時のパラメータスムージング
   - 将来の音響統合の接続ポイント
-  - coherence, entropy, flowStrength, alignment, driftEnabledを一元提供
+  - coherence, entropy, flowStrength, alignment, driftEnabled, breathを一元提供
   - postprocess / fog / edges / streamlines が統一インターフェースで参照
-- **Mode-Aware Rendering**: 各レンダリングシステムがmodeを受け取り、振る舞いを変更
-  - `streamlines.ts`: Internalized時は通常streamlines抑制、hero常時表示
-  - `postprocess.ts`: Internalized時はbloom控えめ、局所性重視
-  - `pointShader.ts`: 局所性半径、coherenceベースのtwinkle制御
+- **Breathing System** (`src/metrics/breath.ts`): 時間的知覚層
+  - 16秒周期のsineベース呼吸オシレーター
+  - phase [0,1], derivative (inhale/exhale direction), intensityを提供
+  - Internalized Modeでのみ視覚的に作用
+  - 「アニメーション時間」ではなく「知覚時間」として機能
+- **Mode-Aware Rendering**: 各レンダリングシステムがmode + breathを受け取り振る舞いを変更
+  - `streamlines.ts`: Internalized時は通常streamlines抑制、hero常時表示＋呼吸変調
+  - `postprocess.ts`: Internalized時はbloom控えめ＋呼吸で光度変調
+  - `pointShader.ts`: 局所性半径の呼吸、coherenceベースのtwinkle制御＋呼吸による周期変化
   - `lod.ts`: Internalized時はedges/labels完全非表示
 
 ## デプロイ（GitHub Pages）

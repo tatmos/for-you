@@ -261,7 +261,14 @@ const animate = () => {
   paramBus.update(delta, camera.position, alignment, drift.enabled, hoveredIndex);
   const params = paramBus.getCameraParams();
   const mode = paramBus.getMode();
+  const breath = paramBus.getBreath();
   const isInternalized = mode === VisualizationMode.Internalized;
+  
+  // Breathing modulation for locality radius: inhale = expand, exhale = contract
+  const baseRadius = isInternalized ? 50.0 : 60.0;
+  const breathingRadius = isInternalized 
+    ? baseRadius + (breath.phase - 0.5) * 10.0  // 45-55 range
+    : baseRadius;
   
   // Update fog based on coherence (clearer in high coherence)
   // In Internalized Mode, fog is more responsive to local coherence
@@ -282,15 +289,16 @@ const animate = () => {
   pointsMaterial.uniforms.time.value = elapsedTime;
   pointsMaterial.uniforms.cameraPosition.value.copy(camera.position);
   pointsMaterial.uniforms.coherence.value = params.coherence;
-  pointsMaterial.uniforms.localityRadius.value = isInternalized ? 50.0 : 60.0;
+  pointsMaterial.uniforms.localityRadius.value = breathingRadius;
+  pointsMaterial.uniforms.breathPhase.value = isInternalized ? breath.phase : 0.5;
   
   // Update streamlines with camera direction for hero streamlines
   const cameraDir = camera.getWorldDirection(new THREE.Vector3());
   const coherenceFactor = drift.enabled ? 1.0 : 0.3;
-  streamlineSystem.update(camera.position, cameraDir, coherenceFactor, delta, mode);
+  streamlineSystem.update(camera.position, cameraDir, coherenceFactor, delta, mode, breath);
   
   // Update postprocessing from ParamBus
-  postProcessor.update(params, mode);
+  postProcessor.update(params, mode, breath);
 
   updateLod({
     camera,
@@ -310,6 +318,7 @@ const animate = () => {
       <div>flow: ${params.flowStrength.toFixed(2)}</div>
       <div>align: ${params.alignment.toFixed(2)}</div>
       <div>drift: ${params.driftEnabled ? "ON" : "OFF"}</div>
+      ${isInternalized ? `<div>breath: ${breath.phase.toFixed(2)}</div>` : ''}
     `;
   }
 

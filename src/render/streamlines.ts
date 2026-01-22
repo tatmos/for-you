@@ -2,11 +2,19 @@ import * as THREE from "three";
 import type { FlowField } from "../field/flow";
 import type { GraphData } from "../graph/sampleGraph";
 import { VisualizationMode } from "../metrics/paramBus";
+import type { BreathState } from "../metrics/breath";
 
 export type StreamlineSystem = {
   mesh: THREE.LineSegments;
   heroMesh: THREE.LineSegments;
-  update: (cameraPos: THREE.Vector3, cameraDir: THREE.Vector3, coherenceFactor: number, delta: number, mode: VisualizationMode) => void;
+  update: (
+    cameraPos: THREE.Vector3, 
+    cameraDir: THREE.Vector3, 
+    coherenceFactor: number, 
+    delta: number, 
+    mode: VisualizationMode,
+    breath: BreathState
+  ) => void;
 };
 
 const mulberry32 = (seed: number) => {
@@ -165,7 +173,8 @@ export const createStreamlines = (
     cameraDir: THREE.Vector3,
     coherenceFactor: number,
     delta: number,
-    mode: VisualizationMode
+    mode: VisualizationMode,
+    breath: BreathState
   ) => {
     updateTimer += delta;
 
@@ -177,6 +186,10 @@ export const createStreamlines = (
     
     const isInternalized = mode === VisualizationMode.Internalized;
     
+    // Breathing modulation for Internalized Mode
+    // Inhale = expand, Exhale = contract
+    const breathModulation = isInternalized ? (1.0 + breath.phase * 0.2) : 1.0;
+    
     // Background streamlines: de-emphasize in Internalized Mode
     let targetOpacity = 0.05 + cohSquared * coherenceFactor * 0.5;
     if (isInternalized) {
@@ -185,10 +198,11 @@ export const createStreamlines = (
     material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, 0.05);
 
     // Hero streamlines: always prominent in Internalized, drift-dependent in Default
+    // Breath modulates hero intensity: inhale = brighter
     let heroTarget: number;
     if (isInternalized) {
       // Always visible in Internalized, stronger with coherence
-      heroTarget = 0.5 + cohSquared * 0.4;
+      heroTarget = (0.5 + cohSquared * 0.4) * breathModulation;
     } else {
       // Original behavior: only during drift
       heroTarget = coherenceFactor > 0.8 ? cohSquared * 0.8 : 0;
