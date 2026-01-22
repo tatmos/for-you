@@ -1,10 +1,10 @@
-# Troubleshooting
+# トラブルシューティング
 
-## npm install returns 403
+## npm install が 403 を返す
 
-If you see a `403 Forbidden` response while fetching packages (for example, from `registry.npmjs.org`), the environment likely blocks outbound access to the public npm registry or requires proxy/credential configuration.
+`registry.npmjs.org` などの取得で `403 Forbidden` が出る場合、環境側で公開npmレジストリへのアクセスがブロックされているか、プロキシ/認証の設定が必要な可能性があります。
 
-Example excerpt from an npm debug log in this environment:
+この環境で確認された npm デバッグログの一例:
 
 ```
 http fetch GET 403 https://registry.npmjs.org/three

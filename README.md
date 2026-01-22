@@ -1,27 +1,27 @@
-# Meaning-space Surfing (Web Prototype)
+# Meaning-space Surfing（Webプロトタイプ）
 
-A minimal Three.js + Vite prototype for drifting through a semantic field. Nodes represent concepts, edges show association strength, and a flow field gently influences drift mode.
+Three.js + Viteの最小構成で、意味空間を漂うように探索するプロトタイプです。ノードは概念、エッジは関連度、フロー場がドリフト移動を緩やかに誘導します。
 
-## Features
-- Deterministic graph generation (~300 nodes + weighted edges)
-- Subtle starfield-like node cloud with faint edges
-- Hover to highlight a neighborhood and reveal labels
-- Drift mode (spacebar) aligns camera velocity with the local flow field
+## 特徴
+- 決定論的なグラフ生成（約300ノード + 重み付きエッジ）
+- 星雲のような点群と、控えめなエッジ表示
+- ホバーで近傍をハイライトし、ラベルを表示
+- ドリフトモード（スペースキー）でフロー場に沿って移動
 
-## Run locally
+## ローカル実行
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open the local Vite URL in your browser.
+起動後、表示されたViteのローカルURLをブラウザで開いてください。
 
-## Controls
-- Drag: orbit
-- Scroll: zoom
-- Space: toggle drift mode
+## 操作
+- ドラッグ: オービット
+- スクロール: ズーム
+- Space: ドリフト切り替え
 
-## Deploy (GitHub Pages)
+## デプロイ（GitHub Pages）
 
-This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that builds the Vite app and publishes `dist/` to GitHub Pages when you push to the `main` branch.
+このリポジトリには `.github/workflows/deploy.yml` のGitHub Actionsワークフローが含まれており、`main` ブランチへのpush時にViteアプリをビルドして `dist/` をGitHub Pagesへ公開します。
