@@ -21,3 +21,7 @@ Then open the local Vite URL in your browser.
 - Drag: orbit
 - Scroll: zoom
 - Space: toggle drift mode
+
+## Deploy (GitHub Pages)
+
+This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml` that builds the Vite app and publishes `dist/` to GitHub Pages when you push to the `main` branch.
