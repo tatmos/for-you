@@ -10,7 +10,7 @@ import { updateLod } from "./render/lod";
 import { createStreamlines } from "./render/streamlines";
 import { createPostProcessor } from "./render/postprocess";
 import { createPointMaterial } from "./render/pointShader";
-import { createParamBus } from "./metrics/paramBus";
+import { createParamBus, VisualizationMode } from "./metrics/paramBus";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -19,13 +19,18 @@ if (!app) {
 
 const hint = document.createElement("div");
 hint.className = "hint";
-hint.textContent = "Drag to orbit · Scroll to zoom · Space toggles drift · M shows metrics";
+hint.textContent = "Drag to orbit · Scroll to zoom · Space toggles drift · M shows metrics · I toggles internalized mode";
 app.appendChild(hint);
 
 const metrics = document.createElement("div");
 metrics.className = "metrics";
 metrics.style.display = "none";
 app.appendChild(metrics);
+
+const modeIndicator = document.createElement("div");
+modeIndicator.className = "mode-indicator";
+modeIndicator.style.display = "none";
+app.appendChild(modeIndicator);
 
 const { scene, camera, renderer, controls } = createScene(app);
 
@@ -197,12 +202,48 @@ const postProcessor = createPostProcessor(scene, camera, renderer);
 const drift = createDriftController(camera, flowField);
 
 let metricsVisible = false;
+let wasInInternalizedMode = false;
+
+const updateUIForMode = () => {
+  const mode = paramBus.getMode();
+  const isInternalized = mode === VisualizationMode.Internalized;
+  
+  // In Internalized Mode: hide UI elements
+  if (isInternalized) {
+    hint.style.display = "none";
+    metrics.style.display = "none";
+    modeIndicator.style.display = "block";
+    modeIndicator.textContent = "◉"; // Subtle glyph
+    
+    // Disable orbit controls
+    controls.enabled = false;
+    
+    // Enable drift by default
+    if (!drift.enabled) {
+      drift.toggle();
+    }
+  } else {
+    hint.style.display = "block";
+    metrics.style.display = metricsVisible ? "block" : "none";
+    modeIndicator.style.display = "none";
+    
+    // Re-enable orbit controls
+    controls.enabled = true;
+  }
+};
+
 window.addEventListener("keydown", (event) => {
   if (event.code === "Space") {
     drift.toggle();
   } else if (event.code === "KeyM") {
     metricsVisible = !metricsVisible;
-    metrics.style.display = metricsVisible ? "block" : "none";
+    const mode = paramBus.getMode();
+    if (mode === VisualizationMode.Default) {
+      metrics.style.display = metricsVisible ? "block" : "none";
+    }
+  } else if (event.code === "KeyI") {
+    paramBus.toggleMode();
+    updateUIForMode();
   }
 });
 
@@ -219,13 +260,17 @@ const animate = () => {
   // Update ParamBus (central state for all systems)
   paramBus.update(delta, camera.position, alignment, drift.enabled, hoveredIndex);
   const params = paramBus.getCameraParams();
+  const mode = paramBus.getMode();
+  const isInternalized = mode === VisualizationMode.Internalized;
   
   // Update fog based on coherence (clearer in high coherence)
+  // In Internalized Mode, fog is more responsive to local coherence
+  const fogResponsiveness = isInternalized ? 0.03 : 0.02;
   const fogNear = 30 + params.coherence * 20;
   const fogFar = 140 + params.coherence * 40;
   if (scene.fog && scene.fog instanceof THREE.Fog) {
-    scene.fog.near = THREE.MathUtils.lerp(scene.fog.near, fogNear, 0.02);
-    scene.fog.far = THREE.MathUtils.lerp(scene.fog.far, fogFar, 0.02);
+    scene.fog.near = THREE.MathUtils.lerp(scene.fog.near, fogNear, fogResponsiveness);
+    scene.fog.far = THREE.MathUtils.lerp(scene.fog.far, fogFar, fogResponsiveness);
   }
   
   // Update edge opacity based on coherence (non-linear)
@@ -233,28 +278,33 @@ const animate = () => {
   const targetEdgeOpacity = 0.06 + cohSquared * 0.4;
   edgeMaterial.opacity = THREE.MathUtils.lerp(edgeMaterial.opacity, targetEdgeOpacity, 0.05);
   
-  // Update point shader time uniform
+  // Update point shader uniforms
   pointsMaterial.uniforms.time.value = elapsedTime;
+  pointsMaterial.uniforms.cameraPosition.value.copy(camera.position);
+  pointsMaterial.uniforms.coherence.value = params.coherence;
+  pointsMaterial.uniforms.localityRadius.value = isInternalized ? 50.0 : 60.0;
   
   // Update streamlines with camera direction for hero streamlines
   const cameraDir = camera.getWorldDirection(new THREE.Vector3());
   const coherenceFactor = drift.enabled ? 1.0 : 0.3;
-  streamlineSystem.update(camera.position, cameraDir, coherenceFactor, delta);
+  streamlineSystem.update(camera.position, cameraDir, coherenceFactor, delta, mode);
   
   // Update postprocessing from ParamBus
-  postProcessor.update(params);
+  postProcessor.update(params, mode);
 
   updateLod({
     camera,
     edges,
     labels: labelSprites,
     hoveredIndex,
-    neighborSet
+    neighborSet,
+    mode
   });
 
   // Update metrics UI if visible
   if (metricsVisible) {
     metrics.innerHTML = `
+      <div>mode: ${mode}</div>
       <div>coh: ${params.coherence.toFixed(2)}</div>
       <div>ent: ${params.entropy.toFixed(2)}</div>
       <div>flow: ${params.flowStrength.toFixed(2)}</div>

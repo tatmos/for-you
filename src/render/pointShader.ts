@@ -5,12 +5,16 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     attribute vec3 color;
     varying vec3 vColor;
     varying float vDistance;
+    varying vec3 vWorldPos;
     uniform float time;
     uniform vec3 fogColor;
+    uniform vec3 cameraPosition;
     
     void main() {
       vColor = color;
-      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      vWorldPos = worldPosition.xyz;
+      vec4 mvPosition = viewMatrix * worldPosition;
       vDistance = length(mvPosition.xyz);
       
       // Distance-based size
@@ -24,8 +28,12 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
   const fragmentShader = `
     varying vec3 vColor;
     varying float vDistance;
+    varying vec3 vWorldPos;
     uniform float time;
     uniform vec3 fogColor;
+    uniform vec3 cameraPosition;
+    uniform float localityRadius;
+    uniform float coherence;
     
     void main() {
       // Circular point shape
@@ -44,12 +52,19 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       // Alpha composition: near is opaque, mid fades, far dissolves into fog
       alpha *= nearLayer * 1.0 + midLayer * 0.6 + farLayer * 0.2;
       
+      // Locality bias: brighter within radius
+      float worldDist = distance(vWorldPos, cameraPosition);
+      float localityFactor = smoothstep(localityRadius * 1.5, localityRadius * 0.5, worldDist);
+      alpha *= 1.0 + localityFactor * 0.4;
+      
       // Far layer mixes with fog color (nebula effect)
       float fogMix = smoothstep(100.0, 150.0, vDistance);
       vec3 color = mix(vColor, fogColor * 0.5, fogMix * 0.7);
       
-      // Subtle time-based twinkle in brightness (not position)
-      float twinkle = sin(time * 0.5 + vDistance * 0.1) * 0.15 + 0.85;
+      // Twinkle regularity controlled by coherence
+      float twinkleAmount = mix(0.15, 0.08, coherence); // Less random when coherent
+      float twinkleFreq = mix(0.5, 0.3, coherence); // Slower when coherent
+      float twinkle = sin(time * twinkleFreq + vDistance * 0.1) * twinkleAmount + (1.0 - twinkleAmount);
       
       vec3 finalColor = color * twinkle;
       gl_FragColor = vec4(finalColor, alpha * 0.9);
@@ -61,7 +76,10 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     fragmentShader,
     uniforms: {
       time: { value: 0 },
-      fogColor: { value: new THREE.Color("#05060b") }
+      fogColor: { value: new THREE.Color("#05060b") },
+      cameraPosition: { value: new THREE.Vector3() },
+      localityRadius: { value: 60.0 },
+      coherence: { value: 0.5 }
     },
     transparent: true,
     depthWrite: false,

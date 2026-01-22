@@ -44,11 +44,36 @@ npm run dev
 起動後、表示されたViteのローカルURLをブラウザで開いてください。
 
 ## 操作
-- **ドラッグ**: オービット
+- **ドラッグ**: オービット（Defaultモード）
 - **スクロール**: ズーム
 - **Space**: ドリフト切り替え
+- **I**: Internalizedモード切り替え
 - **M**: メトリクス表示/非表示（開発用）
-- **ホバー**: ノードと近傍をハイライト
+- **ホバー**: ノードと近傍をハイライト（Defaultモード）
+
+## 可視化モード
+
+### Defaultモード
+客観的な意味空間マップとして機能。全体構造を把握し、OrbitControlsで自由に探索できます。
+
+### Internalizedモード（瞑想装置）
+「空間の中にいる」主観体験。説明的UIを削ぎ落とし、意識点として場を漂います。
+
+**特徴**:
+- OrbitControlsを無効化、ドリフトが主要な移動手段
+- Hero Streamlines（前方の道）が常に可視化され、直観的方向を示す
+- 通常streamlinesとedgesを抑制、局所的知覚を強調
+- カメラ周囲の「局所性半径」内で点がより明瞭に
+- 滑らかなパラメータ変化（強いスムージング）
+- コヒーレンスが点の「twinkle規則性」を制御（coherent時は穏やかに）
+- bloomを控えめに、「presence（気配）」として機能
+
+**体験**:
+- Iキーを押す → UIが消え、画面中央に微かな「◉」グリフ
+- ドリフトが自動でON、前方に道が現れる
+- 周囲の空間が「感じられる層」として知覚される
+- coherent領域では視界がクリアに、path bundleが安定
+- diffuse領域では霞み、pathが短く拡散
 
 ## 体験のポイント
 - ドリフトをONにすると：
@@ -70,10 +95,17 @@ npm run dev
 - 結果: 約300ノード + 200ストリームライン + 5 Hero Streamlinesで滑らかな動作
 
 ## アーキテクチャ
-- **ParamBus** (`src/metrics/paramBus.ts`): 全ビジュアルパラメータの中央管理
+- **ParamBus** (`src/metrics/paramBus.ts`): 全ビジュアルパラメータと状態の中央管理
+  - 可視化モード（Default / Internalized）の管理
+  - Internalized時のパラメータスムージング
   - 将来の音響統合の接続ポイント
   - coherence, entropy, flowStrength, alignment, driftEnabledを一元提供
   - postprocess / fog / edges / streamlines が統一インターフェースで参照
+- **Mode-Aware Rendering**: 各レンダリングシステムがmodeを受け取り、振る舞いを変更
+  - `streamlines.ts`: Internalized時は通常streamlines抑制、hero常時表示
+  - `postprocess.ts`: Internalized時はbloom控えめ、局所性重視
+  - `pointShader.ts`: 局所性半径、coherenceベースのtwinkle制御
+  - `lod.ts`: Internalized時はedges/labels完全非表示
 
 ## デプロイ（GitHub Pages）
 

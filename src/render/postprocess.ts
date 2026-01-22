@@ -3,10 +3,11 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import type { ScalarFields } from "../field/flow";
+import { VisualizationMode } from "../metrics/paramBus";
 
 export type PostProcessor = {
   composer: EffectComposer;
-  update: (fields: ScalarFields) => void;
+  update: (fields: ScalarFields, mode: VisualizationMode) => void;
   resize: (width: number, height: number) => void;
 };
 
@@ -32,22 +33,35 @@ export const createPostProcessor = (
   let targetRadius = 0.35;
   let targetThreshold = 0.88;
 
-  const update = (fields: ScalarFields) => {
+  const update = (fields: ScalarFields, mode: VisualizationMode) => {
     const { coherence, entropy } = fields;
     
     // Non-linear coherence curve using smoothstep for artistic feel
     const cohCurve = THREE.MathUtils.smoothstep(coherence, 0, 1);
     const cohSquared = coherence * coherence;
     
+    const isInternalized = mode === VisualizationMode.Internalized;
+    
     // Bloom as "atmosphere clarity" not "white blowout"
+    // In Internalized Mode: reduce global bloom, emphasize presence over brightness
+    let strengthMultiplier = 1.0;
+    let radiusMultiplier = 1.0;
+    let thresholdOffset = 0;
+    
+    if (isInternalized) {
+      strengthMultiplier = 0.7; // Reduce global bloom
+      radiusMultiplier = 0.8; // Tighter radius
+      thresholdOffset = 0.05; // Slightly higher threshold
+    }
+    
     // Strength increases with coherence but stays moderate
-    targetStrength = 0.35 + cohSquared * 0.55; // 0.35-0.9 range
+    targetStrength = (0.35 + cohSquared * 0.55) * strengthMultiplier;
     
     // Radius increases slightly with coherence (spread, not intensity)
-    targetRadius = 0.3 + cohCurve * 0.35; // 0.3-0.65 range
+    targetRadius = (0.3 + cohCurve * 0.35) * radiusMultiplier;
     
-    // Threshold stays high to prevent washout, lowers slightly in high coherence
-    targetThreshold = 0.92 - cohSquared * 0.18; // 0.92-0.74 range
+    // Threshold stays high to prevent washout
+    targetThreshold = 0.92 - cohSquared * 0.18 + thresholdOffset;
     
     // Smooth interpolation
     bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, targetStrength, 0.03);

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { VisualizationMode } from "../metrics/paramBus";
 
 export type LodOptions = {
   camera: THREE.PerspectiveCamera;
@@ -6,6 +7,7 @@ export type LodOptions = {
   labels: THREE.Sprite[];
   hoveredIndex: number | null;
   neighborSet: Set<number>;
+  mode: VisualizationMode;
 };
 
 export const updateLod = ({
@@ -13,17 +15,25 @@ export const updateLod = ({
   edges,
   labels,
   hoveredIndex,
-  neighborSet
+  neighborSet,
+  mode
 }: LodOptions) => {
   const distance = camera.position.length();
-  const showEdges = distance < 120;
+  const isInternalized = mode === VisualizationMode.Internalized;
+  
+  // In Internalized Mode: hide edges entirely (de-emphasize network structure)
+  let showEdges = distance < 120;
+  if (isInternalized) {
+    showEdges = false;
+  }
 
   if (edges.visible !== showEdges) {
     edges.visible = showEdges;
   }
 
+  // In Internalized Mode: hide labels (no explanatory text)
   labels.forEach((label, index) => {
-    const shouldShow =
+    const shouldShow = !isInternalized &&
       hoveredIndex !== null &&
       (index === hoveredIndex || neighborSet.has(index));
     label.visible = shouldShow;

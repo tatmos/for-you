@@ -49,3 +49,20 @@ body {
   pointer-events: none;
   user-select: none;
 }
+
+.mode-indicator {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  transform: translateX(-50%);
+  font-size: 16px;
+  color: rgba(200, 220, 255, 0.3);
+  pointer-events: none;
+  user-select: none;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+}
