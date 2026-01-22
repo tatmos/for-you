@@ -456,6 +456,7 @@ const updateUIForMode = () => {
 
 window.addEventListener("keydown", (event) => {
   if (event.code === "Space") {
+    event.preventDefault(); // Prevent page scroll
     drift.toggle();
   } else if (event.code === "KeyM") {
     metricsVisible = !metricsVisible;
@@ -472,12 +473,96 @@ window.addEventListener("keydown", (event) => {
 const clock = new THREE.Clock();
 let elapsedTime = 0;
 
+// Cycle management: reset camera to far position when it gets close to center
+let centerDistance = Infinity;
+let stableTime = 0;
+let isResetting = false;
+let resetTarget = new THREE.Vector3();
+let lastCameraPosition = new THREE.Vector3();
+const CENTER_THRESHOLD = 30.0; // Distance from center to trigger reset
+const STABLE_TIME_THRESHOLD = 0.5; // Seconds of stability before reset (very short)
+const RESET_DISTANCE = 80.0; // Distance to reset camera to
+const VELOCITY_THRESHOLD = 5.0; // Minimum velocity to consider moving (very lenient)
+
+// Initialize last camera position
+lastCameraPosition.copy(camera.position);
+
 const animate = () => {
   const delta = clock.getDelta();
   elapsedTime += delta;
   
   controls.update();
-  const alignment = drift.update(delta);
+  
+  let alignment = 0;
+  
+  // Smoothly move camera to reset position
+  if (isResetting) {
+    const resetSpeed = 0.03; // Slightly faster reset
+    camera.position.lerp(resetTarget, resetSpeed);
+    
+    // Look at center
+    const center = new THREE.Vector3(0, 0, 0);
+    camera.lookAt(center);
+    
+    // Check if close enough to target
+    if (camera.position.distanceTo(resetTarget) < 3.0) {
+      isResetting = false;
+      stableTime = 0;
+      // Re-enable drift if it was enabled before reset
+      if (!drift.enabled) {
+        drift.toggle();
+      }
+    }
+  } else {
+    // Normal drift update
+    alignment = drift.update(delta);
+    
+    // Check if camera is close to center and stable (only when drift is enabled)
+    if (drift.enabled) {
+      centerDistance = camera.position.length();
+      
+      // Calculate velocity from position change (avoid division by zero)
+      let velocity = 0;
+      if (delta > 0.001) {
+        velocity = camera.position.clone().sub(lastCameraPosition).length() / delta;
+      }
+      lastCameraPosition.copy(camera.position);
+      
+      // Check if camera is close to center
+      if (centerDistance < CENTER_THRESHOLD) {
+        // Check if velocity is low (stable)
+        if (velocity < VELOCITY_THRESHOLD) {
+          stableTime += delta;
+          
+          if (stableTime > STABLE_TIME_THRESHOLD) {
+            // Reset camera to a random far position
+            isResetting = true;
+            stableTime = 0;
+            
+            // Temporarily disable drift during reset
+            if (drift.enabled) {
+              drift.toggle(); // Disable drift
+            }
+            
+            // Generate random position on a sphere at RESET_DISTANCE
+            const theta = Math.random() * Math.PI * 2; // Azimuth
+            const phi = Math.acos(Math.random() * 2 - 1); // Elevation
+            resetTarget.set(
+              RESET_DISTANCE * Math.sin(phi) * Math.cos(theta),
+              RESET_DISTANCE * Math.sin(phi) * Math.sin(theta) * 0.5 + 20, // Slight bias upward
+              RESET_DISTANCE * Math.cos(phi)
+            );
+          }
+        } else {
+          stableTime = 0;
+        }
+      } else {
+        stableTime = 0;
+      }
+    } else {
+      lastCameraPosition.copy(camera.position);
+    }
+  }
   
   // Update ParamBus (central state for all systems)
   paramBus.update(delta, camera.position, alignment, drift.enabled, hoveredIndex);

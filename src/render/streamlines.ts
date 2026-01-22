@@ -148,7 +148,8 @@ export const createStreamlines = (
       let currentPos = cameraPos.clone().add(offset);
       const heroLine: THREE.Vector3[] = [currentPos.clone()];
 
-      for (let step = 0; step < 30; step++) {
+      // Increase step count for longer streamlines (30 -> 50)
+      for (let step = 0; step < 50; step++) {
         const direction = flowField.sample(currentPos);
         if (direction.lengthSq() < 0.001) break;
         currentPos.addScaledVector(direction, 1.5);
@@ -159,7 +160,8 @@ export const createStreamlines = (
         const p1 = heroLine[i];
         const p2 = heroLine[i + 1];
         heroPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-        const alpha = 1 - (i / heroLine.length) * 0.7;
+        // Gentler fade-out: reduce from 0.7 to 0.4 (less fade, more visible at back)
+        const alpha = 1 - (i / heroLine.length) * 0.4;
         heroColors.push(
           heroColor.r * alpha, heroColor.g * alpha, heroColor.b * alpha,
           heroColor.r * alpha, heroColor.g * alpha, heroColor.b * alpha
@@ -207,8 +209,16 @@ export const createStreamlines = (
       // Always visible in Internalized, stronger with coherence
       heroTarget = (0.5 + cohSquared * 0.4) * breathModulation;
     } else {
-      // Original behavior: only during drift
-      heroTarget = coherenceFactor > 0.8 ? cohSquared * 0.8 : 0;
+      // Default mode: visible when drift is enabled, with minimum opacity
+      if (coherenceFactor > 0.5) {
+        // Drift is enabled - show hero streamlines with minimum visibility
+        const minOpacity = 0.3;
+        const coherenceOpacity = cohSquared * 0.7;
+        heroTarget = Math.max(minOpacity, coherenceOpacity);
+      } else {
+        // Drift is disabled
+        heroTarget = 0;
+      }
     }
     heroMaterial.opacity = THREE.MathUtils.lerp(heroMaterial.opacity, heroTarget, 0.08);
 

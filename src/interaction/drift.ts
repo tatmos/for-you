@@ -28,17 +28,36 @@ export const createDriftController = (
     }
 
     targetDirection.copy(flow.sample(camera.position));
-    if (targetDirection.lengthSq() === 0) {
+    
+    // If flow field is zero, decay velocity to prevent jittering at center
+    if (targetDirection.lengthSq() < 0.001) {
+      velocity.multiplyScalar(0.92); // Decay velocity when no flow
+      camera.position.addScaledVector(velocity, delta);
       return 0;
     }
 
-    velocity.lerp(targetDirection.multiplyScalar(driftSpeed), 0.08);
+    // Normalize target direction
+    targetDirection.normalize();
+    
+    // Lerp velocity towards target direction
+    // Use slightly stronger lerp to prevent oscillation
+    const lerpFactor = 0.1;
+    const targetVelocity = targetDirection.multiplyScalar(driftSpeed);
+    velocity.lerp(targetVelocity, lerpFactor);
+    
+    // Add small damping to prevent jittering
+    velocity.multiplyScalar(0.98);
+    
     camera.position.addScaledVector(velocity, delta);
-    const alignment = camera.getWorldDirection(new THREE.Vector3()).dot(
-      targetDirection.clone().normalize()
-    );
+    
+    const alignment = camera.getWorldDirection(new THREE.Vector3()).dot(targetDirection);
     return alignment;
   };
 
-  return { enabled, toggle, update };
+  // Return object with getter for enabled property
+  return { 
+    get enabled() { return enabled; },
+    toggle, 
+    update 
+  };
 };
