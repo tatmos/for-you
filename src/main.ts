@@ -7,6 +7,9 @@ import { createFlowField } from "./field/flow";
 import { setupPicking } from "./interaction/picking";
 import { createDriftController } from "./interaction/drift";
 import { updateLod } from "./render/lod";
+import { createStreamlines } from "./render/streamlines";
+import { createPostProcessor } from "./render/postprocess";
+import { createPointMaterial } from "./render/pointShader";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -51,13 +54,7 @@ pointsGeometry.setAttribute(
   new THREE.BufferAttribute(nodeColors, 3)
 );
 
-const pointsMaterial = new THREE.PointsMaterial({
-  size: 1.6,
-  vertexColors: true,
-  transparent: true,
-  opacity: 0.9,
-  sizeAttenuation: true
-});
+const pointsMaterial = createPointMaterial();
 
 const points = new THREE.Points(pointsGeometry, pointsMaterial);
 scene.add(points);
@@ -184,6 +181,11 @@ const disposePicking = setupPicking(points, camera, renderer.domElement, (index)
 
 updateHighlights();
 
+const streamlineSystem = createStreamlines(graph, flowField, 200);
+scene.add(streamlineSystem.mesh);
+
+const postProcessor = createPostProcessor(scene, camera, renderer);
+
 const drift = createDriftController(camera, flowField);
 window.addEventListener("keydown", (event) => {
   if (event.code === "Space") {
@@ -192,13 +194,39 @@ window.addEventListener("keydown", (event) => {
 });
 
 const clock = new THREE.Clock();
+let elapsedTime = 0;
 
 const animate = () => {
   const delta = clock.getDelta();
+  elapsedTime += delta;
+  
   controls.update();
   const alignment = drift.update(delta);
   const coherence = THREE.MathUtils.clamp((alignment + 1) * 0.5, 0, 1);
-  edgeMaterial.opacity = 0.12 + coherence * 0.35;
+  
+  const cameraFields = flowField.sampleFields(camera.position);
+  
+  // Update edge opacity based on local coherence
+  const targetEdgeOpacity = 0.08 + cameraFields.coherence * 0.35;
+  edgeMaterial.opacity = THREE.MathUtils.lerp(edgeMaterial.opacity, targetEdgeOpacity, 0.05);
+  
+  // Update fog based on entropy
+  const fogNear = 30 + cameraFields.coherence * 20;
+  const fogFar = 140 + cameraFields.coherence * 40;
+  if (scene.fog && scene.fog instanceof THREE.Fog) {
+    scene.fog.near = THREE.MathUtils.lerp(scene.fog.near, fogNear, 0.02);
+    scene.fog.far = THREE.MathUtils.lerp(scene.fog.far, fogFar, 0.02);
+  }
+  
+  // Update point shader time uniform
+  pointsMaterial.uniforms.time.value = elapsedTime;
+  
+  // Update streamlines
+  const coherenceFactor = drift.enabled ? 1.0 : 0.3;
+  streamlineSystem.update(camera.position, coherenceFactor);
+  
+  // Update postprocessing
+  postProcessor.update(cameraFields);
 
   updateLod({
     camera,
@@ -208,11 +236,20 @@ const animate = () => {
     neighborSet
   });
 
-  renderer.render(scene, camera);
+  postProcessor.composer.render();
   requestAnimationFrame(animate);
 };
 
 animate();
+
+window.addEventListener("resize", () => {
+  const width = app.clientWidth;
+  const height = app.clientHeight;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(width, height);
+  postProcessor.resize(width, height);
+});
 
 window.addEventListener("beforeunload", () => {
   disposePicking();

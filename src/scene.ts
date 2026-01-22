@@ -33,12 +33,5 @@ export const createScene = (container: HTMLElement): SceneBundle => {
   controls.maxDistance = 220;
   controls.autoRotate = false;
 
-  const onResize = () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-  };
-  window.addEventListener("resize", onResize);
-
   return { scene, camera, renderer, controls };
 };
