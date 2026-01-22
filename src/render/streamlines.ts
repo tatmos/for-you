@@ -4,7 +4,8 @@ import type { GraphData } from "../graph/sampleGraph";
 
 export type StreamlineSystem = {
   mesh: THREE.LineSegments;
-  update: (cameraPos: THREE.Vector3, coherenceFactor: number) => void;
+  heroMesh: THREE.LineSegments;
+  update: (cameraPos: THREE.Vector3, cameraDir: THREE.Vector3, coherenceFactor: number, delta: number) => void;
 };
 
 const mulberry32 = (seed: number) => {
@@ -17,6 +18,12 @@ const mulberry32 = (seed: number) => {
   };
 };
 
+type SegmentFields = {
+  coherence: number;
+  entropy: number;
+  flowStrength: number;
+};
+
 export const createStreamlines = (
   graph: GraphData,
   flowField: FlowField,
@@ -26,16 +33,18 @@ export const createStreamlines = (
   const rand = mulberry32(seed);
   const positions: number[] = [];
   const colors: number[] = [];
+  const bakedFields: SegmentFields[] = [];
   const baseColor = new THREE.Color("#4080ff");
   const dimColor = new THREE.Color("#1a2840");
 
-  // Generate streamlines by integrating flow field
+  // Generate background streamlines with baked fields
   for (let s = 0; s < streamlineCount; s++) {
     const startNode = graph.nodes[Math.floor(rand() * graph.nodes.length)];
     const startPos = startNode.position.clone();
     
     const fields = flowField.sampleFields(startPos);
-    const maxSteps = Math.floor(10 + fields.coherence * 30);
+    // Use both coherence AND flowStrength for step count
+    const maxSteps = Math.floor(10 + fields.coherence * 25 + fields.flowStrength * 15);
     const stepSize = 1.2;
 
     let currentPos = startPos.clone();
@@ -48,7 +57,6 @@ export const createStreamlines = (
       currentPos.addScaledVector(direction, stepSize);
       streamline.push(currentPos.clone());
       
-      // Stop if too far from any node
       let minDist = Infinity;
       graph.nodes.forEach(node => {
         const dist = currentPos.distanceToSquared(node.position);
@@ -57,11 +65,16 @@ export const createStreamlines = (
       if (minDist > 400) break;
     }
 
-    // Add streamline as line segments
+    // Bake fields for each segment
     for (let i = 0; i < streamline.length - 1; i++) {
       const p1 = streamline[i];
       const p2 = streamline[i + 1];
       positions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+      
+      // Bake local fields at segment midpoint
+      const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+      const segmentFields = flowField.sampleFields(midpoint);
+      bakedFields.push(segmentFields);
       
       const t = i / (streamline.length - 1);
       const alpha = 1 - t * 0.5;
@@ -86,34 +99,118 @@ export const createStreamlines = (
 
   const mesh = new THREE.LineSegments(geometry, material);
 
-  const update = (cameraPos: THREE.Vector3, coherenceFactor: number) => {
-    const fields = flowField.sampleFields(cameraPos);
-    const coherence = fields.coherence;
-    const entropy = fields.entropy;
-    
-    // Coherence increases visibility and brightness
-    const targetOpacity = 0.08 + coherence * coherenceFactor * 0.4;
-    material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, 0.05);
-    
-    // Update colors based on local coherence
-    const colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
-    const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
-    
-    for (let i = 0; i < colorAttr.count; i += 2) {
-      const px = positions.getX(i);
-      const py = positions.getY(i);
-      const pz = positions.getZ(i);
-      const pos = new THREE.Vector3(px, py, pz);
-      
-      const localFields = flowField.sampleFields(pos);
-      const brightness = 0.3 + localFields.coherence * 0.7;
-      
-      const color = baseColor.clone().lerp(dimColor, localFields.entropy * 0.6);
-      colorAttr.setXYZ(i, color.r * brightness, color.g * brightness, color.b * brightness);
-      colorAttr.setXYZ(i + 1, color.r * brightness, color.g * brightness, color.b * brightness);
+  // Hero streamlines (forward-facing, visible during drift)
+  const heroGeometry = new THREE.BufferGeometry();
+  const heroMaterial = new THREE.LineBasicMaterial({
+    color: new THREE.Color("#6fb0ff"),
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    linewidth: 2
+  });
+  const heroMesh = new THREE.LineSegments(heroGeometry, heroMaterial);
+
+  let updateTimer = 0;
+  const updateInterval = 0.1; // 10fps for color updates
+  let lastCameraPos = new THREE.Vector3();
+
+  const updateHeroStreamlines = (cameraPos: THREE.Vector3, cameraDir: THREE.Vector3) => {
+    const heroCount = 5;
+    const heroPositions: number[] = [];
+    const heroColors: number[] = [];
+    const heroColor = new THREE.Color("#6fb0ff");
+
+    for (let h = 0; h < heroCount; h++) {
+      const angle = (h / heroCount) * Math.PI * 0.5 - Math.PI * 0.25;
+      const offset = new THREE.Vector3(
+        Math.sin(angle) * 8,
+        (h - heroCount / 2) * 3,
+        0
+      );
+      offset.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 0, 1),
+        cameraDir
+      ));
+
+      let currentPos = cameraPos.clone().add(offset);
+      const heroLine: THREE.Vector3[] = [currentPos.clone()];
+
+      for (let step = 0; step < 30; step++) {
+        const direction = flowField.sample(currentPos);
+        if (direction.lengthSq() < 0.001) break;
+        currentPos.addScaledVector(direction, 1.5);
+        heroLine.push(currentPos.clone());
+      }
+
+      for (let i = 0; i < heroLine.length - 1; i++) {
+        const p1 = heroLine[i];
+        const p2 = heroLine[i + 1];
+        heroPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+        const alpha = 1 - (i / heroLine.length) * 0.7;
+        heroColors.push(
+          heroColor.r * alpha, heroColor.g * alpha, heroColor.b * alpha,
+          heroColor.r * alpha, heroColor.g * alpha, heroColor.b * alpha
+        );
+      }
     }
-    colorAttr.needsUpdate = true;
+
+    heroGeometry.setAttribute("position", new THREE.Float32BufferAttribute(heroPositions, 3));
+    heroGeometry.setAttribute("color", new THREE.Float32BufferAttribute(heroColors, 3));
   };
 
-  return { mesh, update };
+  const update = (
+    cameraPos: THREE.Vector3,
+    cameraDir: THREE.Vector3,
+    coherenceFactor: number,
+    delta: number
+  ) => {
+    updateTimer += delta;
+
+    const fields = flowField.sampleFields(cameraPos);
+    const coherence = fields.coherence;
+    
+    // Non-linear coherence emphasis (coh^2)
+    const cohSquared = coherence * coherence;
+    
+    // Background streamlines opacity with non-linear curve
+    const targetOpacity = 0.05 + cohSquared * coherenceFactor * 0.5;
+    material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, 0.05);
+
+    // Hero streamlines: visible during drift with high coherence
+    const heroTarget = coherenceFactor > 0.8 ? cohSquared * 0.8 : 0;
+    heroMaterial.opacity = THREE.MathUtils.lerp(heroMaterial.opacity, heroTarget, 0.08);
+
+    // Update hero streamlines when camera moves significantly or drift toggles
+    const cameraMoved = lastCameraPos.distanceTo(cameraPos) > 5;
+    if (cameraMoved || (coherenceFactor > 0.8 && heroMaterial.opacity > 0.1)) {
+      updateHeroStreamlines(cameraPos, cameraDir);
+      lastCameraPos.copy(cameraPos);
+    }
+
+    // Throttled color updates (10fps instead of 60fps)
+    if (updateTimer >= updateInterval) {
+      updateTimer = 0;
+
+      const colorAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
+      const globalCoherence = fields.coherence;
+
+      // Use baked fields instead of per-frame sampling
+      for (let i = 0; i < bakedFields.length; i++) {
+        const segmentFields = bakedFields[i];
+        
+        // Combine baked local coherence with global camera coherence
+        const effectiveCoherence = segmentFields.coherence * 0.7 + globalCoherence * 0.3;
+        const brightness = 0.25 + effectiveCoherence * 0.75;
+        
+        const color = baseColor.clone().lerp(dimColor, segmentFields.entropy * 0.5);
+        const idx = i * 2;
+        colorAttr.setXYZ(idx, color.r * brightness, color.g * brightness, color.b * brightness);
+        colorAttr.setXYZ(idx + 1, color.r * brightness, color.g * brightness, color.b * brightness);
+      }
+      colorAttr.needsUpdate = true;
+    }
+  };
+
+  return { mesh, heroMesh, update };
 };

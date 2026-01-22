@@ -6,6 +6,7 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     varying vec3 vColor;
     varying float vDistance;
     uniform float time;
+    uniform vec3 fogColor;
     
     void main() {
       vColor = color;
@@ -24,6 +25,7 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     varying vec3 vColor;
     varying float vDistance;
     uniform float time;
+    uniform vec3 fogColor;
     
     void main() {
       // Circular point shape
@@ -34,14 +36,22 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
       // Soft edge
       float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
       
-      // Distance-based fade
-      float distFade = smoothstep(150.0, 80.0, vDistance);
-      alpha *= distFade;
+      // Three-layer depth expression: near/mid/far
+      float nearLayer = smoothstep(50.0, 30.0, vDistance);   // sharp
+      float midLayer = smoothstep(100.0, 50.0, vDistance);   // soft
+      float farLayer = smoothstep(150.0, 100.0, vDistance);  // hazy, mixes with fog
       
-      // Subtle time-based twinkle in brightness
+      // Alpha composition: near is opaque, mid fades, far dissolves into fog
+      alpha *= nearLayer * 1.0 + midLayer * 0.6 + farLayer * 0.2;
+      
+      // Far layer mixes with fog color (nebula effect)
+      float fogMix = smoothstep(100.0, 150.0, vDistance);
+      vec3 color = mix(vColor, fogColor * 0.5, fogMix * 0.7);
+      
+      // Subtle time-based twinkle in brightness (not position)
       float twinkle = sin(time * 0.5 + vDistance * 0.1) * 0.15 + 0.85;
       
-      vec3 finalColor = vColor * twinkle;
+      vec3 finalColor = color * twinkle;
       gl_FragColor = vec4(finalColor, alpha * 0.9);
     }
   `;
@@ -50,7 +60,8 @@ export const createPointMaterial = (): THREE.ShaderMaterial => {
     vertexShader,
     fragmentShader,
     uniforms: {
-      time: { value: 0 }
+      time: { value: 0 },
+      fogColor: { value: new THREE.Color("#05060b") }
     },
     transparent: true,
     depthWrite: false,

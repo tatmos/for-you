@@ -10,6 +10,7 @@ import { updateLod } from "./render/lod";
 import { createStreamlines } from "./render/streamlines";
 import { createPostProcessor } from "./render/postprocess";
 import { createPointMaterial } from "./render/pointShader";
+import { createParamBus } from "./metrics/paramBus";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -18,14 +19,20 @@ if (!app) {
 
 const hint = document.createElement("div");
 hint.className = "hint";
-hint.textContent = "Drag to orbit · Scroll to zoom · Space toggles drift";
+hint.textContent = "Drag to orbit · Scroll to zoom · Space toggles drift · M shows metrics";
 app.appendChild(hint);
+
+const metrics = document.createElement("div");
+metrics.className = "metrics";
+metrics.style.display = "none";
+app.appendChild(metrics);
 
 const { scene, camera, renderer, controls } = createScene(app);
 
 const graph = createSampleGraph();
 layoutGraph(graph);
 const flowField = createFlowField(graph);
+const paramBus = createParamBus(flowField);
 
 const nodePositions = new Float32Array(graph.nodes.length * 3);
 const nodeColors = new Float32Array(graph.nodes.length * 3);
@@ -183,13 +190,19 @@ updateHighlights();
 
 const streamlineSystem = createStreamlines(graph, flowField, 200);
 scene.add(streamlineSystem.mesh);
+scene.add(streamlineSystem.heroMesh);
 
 const postProcessor = createPostProcessor(scene, camera, renderer);
 
 const drift = createDriftController(camera, flowField);
+
+let metricsVisible = false;
 window.addEventListener("keydown", (event) => {
   if (event.code === "Space") {
     drift.toggle();
+  } else if (event.code === "KeyM") {
+    metricsVisible = !metricsVisible;
+    metrics.style.display = metricsVisible ? "block" : "none";
   }
 });
 
@@ -202,31 +215,34 @@ const animate = () => {
   
   controls.update();
   const alignment = drift.update(delta);
-  const coherence = THREE.MathUtils.clamp((alignment + 1) * 0.5, 0, 1);
   
-  const cameraFields = flowField.sampleFields(camera.position);
+  // Update ParamBus (central state for all systems)
+  paramBus.update(delta, camera.position, alignment, drift.enabled, hoveredIndex);
+  const params = paramBus.getCameraParams();
   
-  // Update edge opacity based on local coherence
-  const targetEdgeOpacity = 0.08 + cameraFields.coherence * 0.35;
-  edgeMaterial.opacity = THREE.MathUtils.lerp(edgeMaterial.opacity, targetEdgeOpacity, 0.05);
-  
-  // Update fog based on entropy
-  const fogNear = 30 + cameraFields.coherence * 20;
-  const fogFar = 140 + cameraFields.coherence * 40;
+  // Update fog based on coherence (clearer in high coherence)
+  const fogNear = 30 + params.coherence * 20;
+  const fogFar = 140 + params.coherence * 40;
   if (scene.fog && scene.fog instanceof THREE.Fog) {
     scene.fog.near = THREE.MathUtils.lerp(scene.fog.near, fogNear, 0.02);
     scene.fog.far = THREE.MathUtils.lerp(scene.fog.far, fogFar, 0.02);
   }
   
+  // Update edge opacity based on coherence (non-linear)
+  const cohSquared = params.coherence * params.coherence;
+  const targetEdgeOpacity = 0.06 + cohSquared * 0.4;
+  edgeMaterial.opacity = THREE.MathUtils.lerp(edgeMaterial.opacity, targetEdgeOpacity, 0.05);
+  
   // Update point shader time uniform
   pointsMaterial.uniforms.time.value = elapsedTime;
   
-  // Update streamlines
+  // Update streamlines with camera direction for hero streamlines
+  const cameraDir = camera.getWorldDirection(new THREE.Vector3());
   const coherenceFactor = drift.enabled ? 1.0 : 0.3;
-  streamlineSystem.update(camera.position, coherenceFactor);
+  streamlineSystem.update(camera.position, cameraDir, coherenceFactor, delta);
   
-  // Update postprocessing
-  postProcessor.update(cameraFields);
+  // Update postprocessing from ParamBus
+  postProcessor.update(params);
 
   updateLod({
     camera,
@@ -235,6 +251,17 @@ const animate = () => {
     hoveredIndex,
     neighborSet
   });
+
+  // Update metrics UI if visible
+  if (metricsVisible) {
+    metrics.innerHTML = `
+      <div>coh: ${params.coherence.toFixed(2)}</div>
+      <div>ent: ${params.entropy.toFixed(2)}</div>
+      <div>flow: ${params.flowStrength.toFixed(2)}</div>
+      <div>align: ${params.alignment.toFixed(2)}</div>
+      <div>drift: ${params.driftEnabled ? "ON" : "OFF"}</div>
+    `;
+  }
 
   postProcessor.composer.render();
   requestAnimationFrame(animate);

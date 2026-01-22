@@ -22,23 +22,32 @@ export const createPostProcessor = (
 
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.6,  // strength
-    0.4,  // radius
-    0.85  // threshold
+    0.5,  // strength (moderate default)
+    0.35, // radius
+    0.88  // threshold (higher to prevent washout)
   );
   composer.addPass(bloomPass);
 
-  let targetStrength = 0.6;
-  let targetRadius = 0.4;
-  let targetThreshold = 0.85;
+  let targetStrength = 0.5;
+  let targetRadius = 0.35;
+  let targetThreshold = 0.88;
 
   const update = (fields: ScalarFields) => {
     const { coherence, entropy } = fields;
     
-    // High coherence = stronger, more visible bloom
-    targetStrength = 0.3 + coherence * 0.9;
-    targetRadius = 0.3 + coherence * 0.5;
-    targetThreshold = 0.9 - coherence * 0.25;
+    // Non-linear coherence curve using smoothstep for artistic feel
+    const cohCurve = THREE.MathUtils.smoothstep(coherence, 0, 1);
+    const cohSquared = coherence * coherence;
+    
+    // Bloom as "atmosphere clarity" not "white blowout"
+    // Strength increases with coherence but stays moderate
+    targetStrength = 0.35 + cohSquared * 0.55; // 0.35-0.9 range
+    
+    // Radius increases slightly with coherence (spread, not intensity)
+    targetRadius = 0.3 + cohCurve * 0.35; // 0.3-0.65 range
+    
+    // Threshold stays high to prevent washout, lowers slightly in high coherence
+    targetThreshold = 0.92 - cohSquared * 0.18; // 0.92-0.74 range
     
     // Smooth interpolation
     bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, targetStrength, 0.03);
